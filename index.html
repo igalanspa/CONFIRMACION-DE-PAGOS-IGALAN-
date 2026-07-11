@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Pagos de Personal — IGALAN</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{--azul:#1F4E78;--azul2:#2E75B6;--azul3:#4472C4;--gris:#f4f6f9;--linea:#dce3ee;--verde:#1e9e5a;--ambar:#c9820b;--rojo:#c0392b;}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--gris);color:#1f2a3a}
+  header{background:var(--azul);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0;font-weight:700}.sp{flex:1}
+  .badge{background:rgba(255,255,255,.15);padding:5px 10px;border-radius:20px;font-size:12px}
+  .tabs{display:flex;gap:4px;background:#e7edf6;padding:8px 20px 0;flex-wrap:wrap}
+  .tab{padding:9px 18px;border:none;background:#d3ddec;color:#31465f;font-weight:700;font-size:13px;cursor:pointer;border-radius:8px 8px 0 0}
+  .tab.active{background:var(--gris);color:var(--azul)}
+  .wrap{padding:16px 20px 70px}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  select,input,button{font-family:inherit;font-size:13px}
+  select,input{padding:6px 8px;border:1px solid var(--linea);border-radius:7px;background:#fff}
+  .btn{padding:8px 14px;border:none;border-radius:7px;background:var(--azul2);color:#fff;font-weight:700;cursor:pointer}
+  .btn.ghost{background:#fff;color:var(--azul);border:1px solid var(--azul2)}.btn.sm{padding:5px 9px;font-size:12px}
+  .btn.wa{background:#25D366}.btn.mail{background:#4472C4}
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .card{background:#fff;border:1px solid var(--linea);border-radius:12px;padding:12px 16px;min-width:150px;flex:1}
+  .card .lbl{font-size:11px;color:#67788f;text-transform:uppercase}.card .val{font-size:19px;font-weight:800;color:var(--azul);margin-top:3px}
+  .sec-title{background:var(--azul2);color:#fff;padding:9px 14px;border-radius:9px 9px 0 0;font-weight:800;margin-top:14px;font-size:14px;display:flex;justify-content:space-between}
+  .scroll{overflow-x:auto;border:1px solid var(--linea);border-top:none}
+  table{border-collapse:collapse;background:#fff;font-size:12px;min-width:100%}
+  th{background:var(--azul3);color:#fff;padding:7px 5px;text-align:left;font-size:10.5px;white-space:nowrap;position:sticky;top:0}
+  td{padding:4px 5px;border-bottom:1px solid #eef2f8;vertical-align:middle;white-space:nowrap}
+  tr:hover td{background:#f7faff}
+  td input,td select{width:100%;min-width:60px}
+  td input.num{text-align:right}
+  .name{font-weight:700}.rut{color:#6a7a92;font-size:10.5px}
+  .calc{background:#eef4fc;font-weight:700;text-align:right;color:#20344d}
+  .subtotal td{background:#eaf0fb;font-weight:800;color:var(--azul);text-align:right}
+  .grand{background:var(--azul);color:#fff;font-weight:800}
+  #anual td.mon{text-align:right}#anual .tot{font-weight:800;color:var(--azul);text-align:right}#anual .grow td{background:var(--azul);color:#fff;font-weight:800}
+  .drop{border:2px dashed var(--azul2);border-radius:12px;padding:22px;text-align:center;color:#4a5f7a;background:#fbfdff;cursor:pointer}
+  .config{background:#fff;border:1px solid var(--linea);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .config label{font-size:12px;font-weight:700;color:#45586f;display:block;margin:8px 0 4px}
+  .hint{font-size:11.5px;color:#7a8aa0;margin-top:4px}
+  .ok{color:var(--verde);font-weight:700}.err{color:var(--rojo);font-weight:700}
+  a.file{color:var(--azul2);font-weight:700;font-size:11px}
+  .modal-bg{position:fixed;inset:0;background:rgba(20,30,45,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal{background:#fff;border-radius:14px;max-width:520px;width:92%;padding:20px}
+  .modal textarea{width:100%;height:150px;border:1px solid var(--linea);border-radius:8px;padding:10px;font-family:inherit;font-size:13px}
+  .modal .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <h1>💠 Sistema de Pagos de Personal — IGALAN</h1>
+  <span class="badge" id="pcount"></span>
+  <div class="sp"></div>
+  <span class="badge">Datos guardados en este navegador</span>
+</header>
+<div class="tabs">
+  <button class="tab active" data-tab="mensual">Registro mensual</button>
+  <button class="tab" data-tab="importar">Importar mes</button>
+  <button class="tab" data-tab="anual">Resumen anual</button>
+  <button class="tab" data-tab="cfg">Configuración</button>
+</div>
+<div class="wrap">
+
+  <!-- MENSUAL -->
+  <div id="mensual">
+    <div class="toolbar">
+      <label style="font-weight:700;color:#45586f">Mes:</label><select id="mesSel"></select>
+      <span style="font-weight:700;color:#45586f">Año:</span><input type="number" id="anioInp" value="2026" style="width:90px">
+      <button class="btn ghost sm" id="btnAdd">＋ Agregar persona</button>
+      <button class="btn ghost sm" id="btnCSV">⬇ CSV del mes</button>
+      <span id="mMsg" class="hint"></span>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div id="tablas"></div>
+    <p class="hint">Celdas editables: turnos, ajuste, jefatura, base mutualidad, banco/cuenta y el seguimiento de pago. <b>Horas, Subtotal, Total a Pagar y Mutualidad</b> se calculan solos. 📎 = pega el enlace de la boleta subida a Drive.</p>
+  </div>
+
+  <!-- IMPORTAR -->
+  <div id="importar" style="display:none">
+    <div class="config">
+      <h3 style="margin:0 0 10px;color:var(--azul)">Importar mes desde CSV / Excel</h3>
+      <div class="toolbar">
+        <span>Cargar en:</span><b id="impPeriodo"></b>
+        <span style="margin-left:10px">Modo:</span>
+        <select id="impMode"><option value="reemplazar">Reemplazar el mes</option><option value="agregar">Agregar / actualizar por RUT</option></select>
+      </div>
+      <div id="drop" class="drop">📥 Arrastra tus archivos (puedes soltar los 3 a la vez: EU, Médicos, TENS) o haz clic.<div class="hint" style="margin-top:6px">Separador <b>;</b> y encabezados: Estamento, Nombre, Apellido, RUT, Banco, NumeroCuenta, Turnos12h, Turnos24h, AjusteRetraso, SueldoJefatura, Impuesto, BaseMutualidad.</div></div>
+      <input type="file" id="fileImp" accept=".csv,.xlsx,.xls" multiple style="display:none">
+      <div class="toolbar" style="margin-top:12px"><button class="btn ghost sm" id="btnPlantilla">⬇ Plantilla CSV</button><span id="impMsg" class="hint"></span></div>
+    </div>
+  </div>
+
+  <!-- ANUAL -->
+  <div id="anual" style="display:none">
+    <div class="toolbar"><span style="font-weight:700;color:#45586f">Resumen anual <span id="anioLbl"></span> — Total a Pagar por estamento y mes.</span>
+      <button class="btn ghost sm" id="btnCSVanual">⬇ CSV anual</button></div>
+    <div class="scroll"><div id="anualTabla"></div></div>
+  </div>
+
+  <!-- CONFIG -->
+  <div id="cfg" style="display:none">
+    <div class="config">
+      <h3 style="margin:0 0 10px;color:var(--azul)">Tarifas por turno (por estamento)</h3>
+      <div class="scroll" style="border:none"><table id="tarTabla"></table></div>
+      <div class="hint">Valores por defecto detectados de tu modelo. Cambia y presiona Guardar tarifas si algún mes varían.</div>
+      <button class="btn sm" id="btnTar" style="margin-top:10px">💾 Guardar tarifas</button>
+    </div>
+    <div class="config">
+      <h3 style="margin:0 0 8px;color:var(--azul)">Envío de boletas / mensaje</h3>
+      <label>Enlace de envío (carpeta o formulario de Google Drive)</label>
+      <input type="url" id="cfgUpload" style="width:100%;max-width:520px">
+      <label>Concepto del mensaje</label>
+      <input type="text" id="cfgConcepto" style="width:100%;max-width:360px" placeholder="Pago de honorarios">
+    </div>
+    <div class="config">
+      <h3 style="margin:0 0 8px;color:var(--azul)">Respaldo</h3>
+      <div class="toolbar">
+        <button class="btn ghost sm" id="btnBackup">⬇ Descargar respaldo (JSON)</button>
+        <button class="btn ghost sm" id="btnRestore">⬆ Restaurar respaldo</button>
+        <input type="file" id="fileRestore" accept="application/json" style="display:none">
+        <button class="btn sm" style="background:var(--rojo)" id="btnWipe">🗑 Borrar TODO</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal">
+  <h3 id="modalTit" style="margin:0 0 10px;color:var(--azul)">Mensaje</h3>
+  <textarea id="modalTxt"></textarea>
+  <div class="row"><button class="btn wa" id="mWa">📱 WhatsApp</button><button class="btn mail" id="mMail">✉ Correo</button><button class="btn ghost" id="mCopy">⧉ Copiar</button><button class="btn ghost" id="mClose" style="margin-left:auto">Cerrar</button></div>
+</div></div>
+
+<script>
+const SEED=/*SEED*/[{"est": "Enfermeras (EU)", "nom": "ANDREA CAROLINA", "ape": "PARRA", "rut": "15670203-K", "banco": "ESTADO", "cuenta": "28000004610", "t12": 3, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "MARIA INES", "ape": "ITE", "rut": "9440503-3", "banco": "BANCO DE CHILE", "cuenta": "1950298600", "t12": 7, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "ROBERTO", "ape": "CELIS", "rut": "9966430-4", "banco": "SANTANDER", "cuenta": "6965734-6", "t12": 16, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "LISSETTE", "ape": "GONZALEZ", "rut": "15282778-4", "banco": "BANCO SANTANDER", "cuenta": "61776494", "t12": 5, "t24": 0, "ajuste": 0.0, "jefatura": 2000000.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "JAZMINA", "ape": "GATICA", "rut": "12531773-1", "banco": "BANCO CHILE", "cuenta": "4701200", "t12": 13, "t24": 1, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "CLAUDIA", "ape": "LOUIT", "rut": "15592442-K", "banco": "BANCO CHILE", "cuenta": "2251310310", "t12": 2, "t24": 1, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "EVA", "ape": "GONZÁLEZ", "rut": "13455690-0", "banco": "BANCO ITAU", "cuenta": "215131497", "t12": 6, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "CAMILA", "ape": "PERALTA", "rut": "17271211-8", "banco": "SANTANDER", "cuenta": "81462925", "t12": 2, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Enfermeras (EU)", "nom": "Isabel", "ape": "Hernandez", "rut": "186152262-k", "banco": "", "cuenta": "", "t12": 2, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Alejandro", "ape": "Saez Ceballos", "rut": "13952142-0", "banco": "TAPP", "cuenta": "13952142", "t12": 4, "t24": 5, "ajuste": -175002.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Ruth", "ape": "Leiva jara", "rut": "12722287-8", "banco": "ITAU", "cuenta": "200611811", "t12": 0, "t24": 4, "ajuste": 14583.5, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Johan Michel", "ape": "Garcia Paz", "rut": "25395067-6", "banco": "BANCO  SANTANDER", "cuenta": "82179887", "t12": 0, "t24": 5, "ajuste": 87501.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Rodrigo", "ape": "Valenzuela Von Appen", "rut": "15185361-7", "banco": "BANCO DE CHILE", "cuenta": "100139406", "t12": 0, "t24": 4, "ajuste": 277086.5, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Cristobal", "ape": "Pinto", "rut": "18498590-k", "banco": "ITAU", "cuenta": "221681843", "t12": 0, "t24": 4, "ajuste": -29167.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Galo", "ape": "Samaniego Ayala", "rut": "25034875-4", "banco": "BANCO DE CHILE", "cuenta": "1622461906", "t12": 4, "t24": 1, "ajuste": -145835.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "Alberto", "ape": "Di Lorenzo", "rut": "26557084-4", "banco": "ITAU", "cuenta": "221399771", "t12": 0, "t24": 3, "ajuste": -29167.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "Médicos", "nom": "XAVIER ALFREDO", "ape": "VIÑAN SIERRA", "rut": "14732376-K", "banco": "BANCO DE CHILE", "cuenta": "1630144500", "t12": 0, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "JOSE", "ape": "MORENO", "rut": "23377246-1", "banco": "ESTADO", "cuenta": "8475717", "t12": 14, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "MAXIMO", "ape": "ARAYA", "rut": "14475626-6", "banco": "ESTADO", "cuenta": "30170054756", "t12": 12, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "MARIA JOSE", "ape": "GONZALEZ", "rut": "18672449-6", "banco": "SANTANDER", "cuenta": "71331261", "t12": 1, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "LISSETTE", "ape": "BRAVO", "rut": "17123096-9", "banco": "SANTANDER", "cuenta": "7017966507", "t12": 0, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "LEANDRO", "ape": "JORDAN", "rut": "17464503-5", "banco": "BCI", "cuenta": "27918289", "t12": 4, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "WILLIAMS", "ape": "BALLESTEROS", "rut": "10732508-5", "banco": "SANTANDER", "cuenta": "9079137666", "t12": 5, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "JOCELYN", "ape": "LAGUNAS", "rut": "16346542-6", "banco": "ESTADO", "cuenta": "26870084357", "t12": 5, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "PATRICIA", "ape": "SAGUAS", "rut": "8776423-0", "banco": "ESTADO", "cuenta": "8776423", "t12": 14, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "MANUEL", "ape": "ORTIZ", "rut": "15526479-9", "banco": "ESTADO", "cuenta": "15526479", "t12": 8, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}, {"est": "TENS", "nom": "IVONNE", "ape": "MATELUNA", "rut": "15889438-6", "banco": "", "cuenta": "", "t12": 1, "t24": 0, "ajuste": 0.0, "jefatura": 0.0, "impuesto": "Exento", "base": 0.0}]/*ENDSEED*/;
+const MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const EST_ORDER=["Enfermeras (EU)","Médicos","TENS"];
+const LS="igalan_sistema_v1";
+const $=id=>document.getElementById(id);
+const norm=s=>(s||"").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
+const fmt=n=>"$"+(Number(n)||0).toLocaleString("es-CL",{maximumFractionDigits:2});
+
+let db=JSON.parse(localStorage.getItem(LS)||"null");
+if(!db){
+  db={data:{},cfg:{upload:"https://drive.google.com/drive/project/1oi8vR8M3IUVEwYDZCiAirgPkIMTWPDw5?usp=sharing",concepto:"Pago de honorarios",tarifas:{eu:[140000,280000],med:[350000,700000],tens:[70000,140000]}}};
+  db.data["2026-6"]=SEED.map(seedRow);
+}
+if(!db.cfg.tarifas)db.cfg.tarifas={eu:[140000,280000],med:[350000,700000],tens:[70000,140000]};
+function seedRow(s){return {est:s.est,nom:s.nom,ape:s.ape,rut:s.rut,banco:s.banco||"",cuenta:s.cuenta||"",t12:s.t12||0,t24:s.t24||0,ajuste:s.ajuste||0,jefatura:s.jefatura||0,impuesto:s.impuesto||"Exento",base:s.base||0,estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""};}
+function save(){localStorage.setItem(LS,JSON.stringify(db));}
+function per(){return $("anioInp").value+"-"+ $("mesSel").value;}
+function rowsOf(p){return db.data[p]||[];}
+function rateKey(est){const n=norm(est);if(n.includes("med"))return "med";if(n.includes("tens"))return "tens";return "eu";}
+function rate(est){return db.cfg.tarifas[rateKey(est)];}
+function calc(r){const [r12,r24]=rate(r.est);const horas=(+r.t12||0)*12+(+r.t24||0)*24;const subtotal=(+r.t12||0)*r12+(+r.t24||0)*r24;const total=subtotal+(+r.ajuste||0)+(+r.jefatura||0);const mut=(+r.base||0)*0.0093;return {horas,subtotal,total,mut};}
+
+// ---- init ----
+MESES.forEach((m,i)=>{const o=document.createElement("option");o.value=i+1;o.textContent=m;$("mesSel").appendChild(o);});
+$("mesSel").value=6;$("anioInp").value=2026;
+$("cfgUpload").value=db.cfg.upload||"";$("cfgConcepto").value=db.cfg.concepto||"";
+
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
+  ["mensual","importar","anual","cfg"].forEach(id=>$(id).style.display="none");$(t.dataset.tab).style.display="block";
+  if(t.dataset.tab==="anual")renderAnual();
+  if(t.dataset.tab==="importar")$("impPeriodo").textContent=MESES[$("mesSel").value-1]+" "+$("anioInp").value;
+  if(t.dataset.tab==="cfg")renderTarifas();
+});
+
+// ---- MENSUAL ----
+const COLS=[["banco","Banco",""],["cuenta","N° Cuenta",""],["t12","T.12h","num"],["t24","T.24h","num"],
+  ["ajuste","Ajuste","num"],["jefatura","Jefatura","num"],["base","Base Mut.","num"]];
+function groups(p){const o=[],idx={};const ord=[...EST_ORDER];rowsOf(p).forEach(r=>{if(!ord.includes(r.est))ord.push(r.est);});
+  ord.forEach(e=>{const g=rowsOf(p).filter(r=>r.est===e);if(g.length)o.push([e,g]);});return o;}
+function renderMensual(){
+  const p=per(),cont=$("tablas");cont.innerHTML="";
+  const all=rowsOf(p);$("pcount").textContent=all.length+" personas";
+  let gTotal=0,pagados=0,conf=0;
+  groups(p).forEach(([est,gente])=>{
+    let sT={horas:0,subtotal:0,ajuste:0,jefatura:0,total:0,mut:0};
+    const rows=gente.map(r=>{const idx=all.indexOf(r);const c=calc(r);sT.horas+=c.horas;sT.subtotal+=c.subtotal;sT.ajuste+=(+r.ajuste||0);sT.jefatura+=(+r.jefatura||0);sT.total+=c.total;sT.mut+=c.mut;gTotal+=c.total;if(r.estado==="Pagado")pagados++;if(r.confirmado)conf++;
+      const link=r.boleta?`<a class="file" href="${r.boleta}" target="_blank">ver</a>`:"";
+      return `<tr data-i="${idx}">
+        <td class="name">${r.nom} ${r.ape}<div class="rut">${r.rut}</div></td>
+        <td><input data-k="banco" value="${(r.banco||"").replace(/"/g,'&quot;')}"></td>
+        <td><input data-k="cuenta" value="${(r.cuenta||"").replace(/"/g,'&quot;')}"></td>
+        <td><input class="num" type="number" data-k="t12" value="${r.t12||0}"></td>
+        <td><input class="num" type="number" data-k="t24" value="${r.t24||0}"></td>
+        <td class="calc">${c.horas}</td>
+        <td class="calc">${fmt(c.subtotal)}</td>
+        <td><input class="num" type="number" data-k="ajuste" value="${r.ajuste||0}"></td>
+        <td><input class="num" type="number" data-k="jefatura" value="${r.jefatura||0}"></td>
+        <td class="calc">${fmt(c.total)}</td>
+        <td><input class="num" type="number" data-k="base" value="${r.base||0}"></td>
+        <td class="calc">${fmt(c.mut)}</td>
+        <td><select data-k="estado"><option ${r.estado==="Pendiente"?"selected":""}>Pendiente</option><option ${r.estado==="Pagado"?"selected":""}>Pagado</option></select></td>
+        <td style="text-align:center"><input type="checkbox" data-k="confirmado" ${r.confirmado?"checked":""}></td>
+        <td><input data-k="comprobante" value="${(r.comprobante||"").replace(/"/g,'&quot;')}" placeholder="N°/transf."></td>
+        <td><input data-k="boleta" value="${(r.boleta||"").replace(/"/g,'&quot;')}" placeholder="link Drive" style="min-width:110px"> ${link}</td>
+        <td style="display:flex;gap:3px"><button class="btn wa sm" data-act="wa">WA</button><button class="btn mail sm" data-act="mail">✉</button><button class="btn sm" style="background:var(--rojo)" data-act="del">✕</button></td>
+      </tr>`;}).join("");
+    cont.insertAdjacentHTML("beforeend",
+      `<div class="sec-title"><span>ESTAMENTO: ${est}</span><span>${gente.length} personas · ${fmt(sT.total)}</span></div>
+       <div class="scroll"><table><thead><tr><th>Persona</th><th>Banco</th><th>N° Cuenta</th><th>T.12h</th><th>T.24h</th><th>Horas</th><th>Subtotal</th><th>Ajuste</th><th>Jefatura</th><th>Total a Pagar</th><th>Base Mut.</th><th>Mut.0,93%</th><th>Estado</th><th>Conf.</th><th>Comprobante</th><th>Boleta</th><th>Acción</th></tr></thead>
+       <tbody>${rows}
+       <tr class="subtotal"><td colspan="5" style="text-align:right">Subtotal ${est}</td><td>${sT.horas}</td><td>${fmt(sT.subtotal)}</td><td>${fmt(sT.ajuste)}</td><td>${fmt(sT.jefatura)}</td><td>${fmt(sT.total)}</td><td></td><td>${fmt(sT.mut)}</td><td colspan="5"></td></tr>
+       </tbody></table></div>`);
+  });
+  $("cards").innerHTML=`<div class="card"><div class="lbl">Total a Pagar ${MESES[$("mesSel").value-1]}</div><div class="val">${fmt(gTotal)}</div></div>
+    <div class="card"><div class="lbl">Personas</div><div class="val">${all.length}</div></div>
+    <div class="card"><div class="lbl">Pagados</div><div class="val">${pagados}/${all.length}</div></div>
+    <div class="card"><div class="lbl">Recepción confirmada</div><div class="val">${conf}/${all.length}</div></div>`;
+  bind();
+}
+function bind(){
+  document.querySelectorAll("#tablas tr[data-i]").forEach(tr=>{
+    const i=+tr.dataset.i, arr=rowsOf(per()), r=arr[i];
+    tr.querySelectorAll("[data-k]").forEach(el=>el.onchange=()=>{
+      const k=el.dataset.k;r[k]= el.type==="checkbox"?el.checked : (["t12","t24","ajuste","jefatura","base"].includes(k)?(el.value===""?0:Number(el.value)):el.value);
+      save();if(["t12","t24","ajuste","jefatura","base"].includes(k))renderMensual();
+      $("mMsg").innerHTML='<span class="ok">✓ Guardado</span>';setTimeout(()=>$("mMsg").textContent="",1200);
+    });
+    tr.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
+      if(b.dataset.act==="del"){if(confirm(`Eliminar a ${r.nom} ${r.ape} de este mes?`)){arr.splice(i,1);save();renderMensual();}}
+      else openMsg(r,b.dataset.act);
+    });
+  });
+}
+$("btnAdd").onclick=()=>{rowsOf(per()).length; if(!db.data[per()])db.data[per()]=[]; db.data[per()].push({est:EST_ORDER[0],nom:"NUEVA",ape:"PERSONA",rut:"",banco:"",cuenta:"",t12:0,t24:0,ajuste:0,jefatura:0,impuesto:"Exento",base:0,estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""});save();renderMensual();};
+
+// ---- mensaje ----
+function openMsg(r,canal){
+  const c=calc(r),link=db.cfg.upload||"";const concepto=db.cfg.concepto||"Pago de honorarios";
+  const txt=`Hola ${r.nom} ${r.ape},\n\n${concepto} correspondiente a ${MESES[$("mesSel").value-1]} ${$("anioInp").value}.\nTotal a pagar: ${fmt(c.total)}.\nEstamento: ${r.est}.\n\nPor favor suba su boleta/factura en esta carpeta para confirmar la recepción del pago:\n${link}\n\n¡Gracias!\n— IGALAN`;
+  if(canal==="wa")window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+  else location.href="mailto:?subject="+encodeURIComponent(`Pago ${MESES[$("mesSel").value-1]} ${$("anioInp").value} — ${r.nom} ${r.ape}`)+"&body="+encodeURIComponent(txt);
+}
+$("mClose").onclick=()=>$("modalBg").style.display="none";
+
+// ---- ANUAL ----
+function renderAnual(){
+  const anio=$("anioInp").value;$("anioLbl").textContent=anio;
+  let html="<table><thead><tr><th>Mes</th>"+EST_ORDER.map(e=>`<th>${e}</th>`).join("")+"<th>Total General</th></tr></thead><tbody>";
+  const tot={};EST_ORDER.forEach(e=>tot[e]=0);let g=0;
+  MESES.forEach((m,mi)=>{const rows=db.data[anio+"-"+(mi+1)]||[];const byE={};EST_ORDER.forEach(e=>byE[e]=0);let mt=0;
+    rows.forEach(r=>{const t=calc(r).total;const k=EST_ORDER.find(e=>rateKey(e)===rateKey(r.est))||r.est;if(byE[k]===undefined)byE[k]=0;byE[k]+=t;mt+=t;});
+    EST_ORDER.forEach(e=>tot[e]+=byE[e]||0);g+=mt;
+    html+=`<tr><td style="font-weight:700">${m}</td>`+EST_ORDER.map(e=>`<td class="mon">${byE[e]?fmt(byE[e]):"-"}</td>`).join("")+`<td class="tot">${mt?fmt(mt):"-"}</td></tr>`;});
+  html+=`<tr class="grow"><td>TOTAL AÑO</td>`+EST_ORDER.map(e=>`<td class="mon">${fmt(tot[e])}</td>`).join("")+`<td class="mon">${fmt(g)}</td></tr></tbody></table>`;
+  $("anualTabla").innerHTML=html;
+}
+
+// ---- IMPORTAR ----
+const drop=$("drop"),fileImp=$("fileImp");
+drop.onclick=()=>fileImp.click();
+drop.ondragover=e=>{e.preventDefault();drop.style.background="#eaf3ff";};
+drop.ondragleave=()=>drop.style.background="#fbfdff";
+drop.ondrop=e=>{e.preventDefault();drop.style.background="#fbfdff";handleFiles(e.dataTransfer.files);};
+fileImp.onchange=e=>handleFiles(e.target.files);
+function findCol(hdr,...keys){return hdr.findIndex(h=>keys.some(k=>h.includes(k)));}
+function toNum(x){x=(x||"").toString().replace(/[^0-9.\-]/g,"");return x===""?0:Number(x);}
+function mapMatrix(matrix){
+  if(!matrix.length)return[];
+  const hdr=matrix[0].map(norm);
+  const iE=findCol(hdr,"estamento"),iN=findCol(hdr,"nombre"),iA=findCol(hdr,"apellido"),iR=findCol(hdr,"rut"),
+        iB=findCol(hdr,"banco"),iC=findCol(hdr,"cuenta"),i12=findCol(hdr,"12"),i24=findCol(hdr,"24"),
+        iAj=findCol(hdr,"ajuste","retraso"),iJ=findCol(hdr,"jefatura"),iI=findCol(hdr,"impuesto"),iBas=findCol(hdr,"base");
+  const out=[];
+  for(let r=1;r<matrix.length;r++){const row=matrix[r];if(!row||row.every(c=>c===""||c==null))continue;
+    const nom=iN>=0?String(row[iN]||"").trim():"",rut=iR>=0?String(row[iR]||"").trim():"";
+    if(!nom&&!rut)continue;
+    out.push({est:(iE>=0?String(row[iE]||"").trim():"")||"SIN ESTAMENTO",nom,ape:iA>=0?String(row[iA]||"").trim():"",rut,
+      banco:iB>=0?String(row[iB]||"").trim():"",cuenta:iC>=0?String(row[iC]||"").trim():"",
+      t12:i12>=0?toNum(row[i12]):0,t24:i24>=0?toNum(row[i24]):0,ajuste:iAj>=0?toNum(row[iAj]):0,
+      jefatura:iJ>=0?toNum(row[iJ]):0,impuesto:iI>=0?(String(row[iI]||"").trim()||"Exento"):"Exento",base:iBas>=0?toNum(row[iBas]):0,
+      estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""});}
+  return out;
+}
+function parseCSV(t){const first=t.split("\n")[0];const d=(first.match(/;/g)||[]).length>=(first.match(/,/g)||[]).length?";":",";
+  return t.replace(/\r/g,"").split("\n").filter(l=>l.trim()!=="").map(line=>{const o=[];let c="",q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===d&&!q){o.push(c);c="";}else c+=ch;}o.push(c);return o.map(s=>s.trim());});}
+async function handleFiles(files){
+  if(!files||!files.length)return;const p=per();const msg=$("impMsg");msg.textContent="Procesando…";
+  let recs=[];
+  for(const f of files){
+    const ext=f.name.split(".").pop().toLowerCase();
+    if(ext==="csv"){const txt=await f.text();recs=recs.concat(mapMatrix(parseCSV(txt)));}
+    else if(typeof XLSX!=="undefined"){const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:"array"});wb.SheetNames.forEach(sn=>{const m=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""});recs=recs.concat(mapMatrix(m));});}
+  }
+  if(!recs.length){msg.innerHTML='<span class="err">No se detectaron filas válidas.</span>';return;}
+  if(!db.data[p])db.data[p]=[];
+  if($("impMode").value==="reemplazar")db.data[p]=recs;
+  else recs.forEach(nr=>{const ex=db.data[p].find(x=>x.rut&&x.rut===nr.rut);if(ex)Object.assign(ex,{est:nr.est,nom:nr.nom,ape:nr.ape,banco:nr.banco,cuenta:nr.cuenta,t12:nr.t12,t24:nr.t24,ajuste:nr.ajuste,jefatura:nr.jefatura,impuesto:nr.impuesto,base:nr.base});else db.data[p].push(nr);});
+  save();msg.innerHTML=`<span class="ok">✓ ${recs.length} filas cargadas en ${MESES[$("mesSel").value-1]} ${$("anioInp").value}.</span>`;renderMensual();
+}
+$("btnPlantilla").onclick=()=>dl("plantilla_mes.csv","Estamento;Nombre;Apellido;RUT;Banco;NumeroCuenta;Turnos12h;Turnos24h;AjusteRetraso;SueldoJefatura;Impuesto;BaseMutualidad\nTENS;JUAN;PEREZ;12345678-9;ESTADO;123456;10;0;0;0;Exento;0\n");
+
+// ---- tarifas / config ----
+function renderTarifas(){
+  const t=db.cfg.tarifas;const rowsT=[["eu","Enfermeras (EU)"],["med","Médicos"],["tens","TENS"]];
+  $("tarTabla").innerHTML="<thead><tr><th>Estamento</th><th>Tarifa 12h</th><th>Tarifa 24h</th></tr></thead><tbody>"+
+    rowsT.map(([k,l])=>`<tr><td style="padding:6px">${l}</td><td><input class="num" type="number" data-t="${k}" data-j="0" value="${t[k][0]}"></td><td><input class="num" type="number" data-t="${k}" data-j="1" value="${t[k][1]}"></td></tr>`).join("")+"</tbody>";
+  document.querySelectorAll('#tarTabla input').forEach(el=>el.onchange=()=>{db.cfg.tarifas[el.dataset.t][+el.dataset.j]=Number(el.value)||0;});
+}
+$("btnTar").onclick=()=>{save();renderMensual();alert("Tarifas guardadas.");};
+$("cfgUpload").oninput=e=>{db.cfg.upload=e.target.value;save();};
+$("cfgConcepto").oninput=e=>{db.cfg.concepto=e.target.value;save();};
+
+// ---- export / backup ----
+function dl(name,text,type){const b=new Blob([text],{type:type||"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;a.click();}
+$("btnCSV").onclick=()=>{const p=per();let c="Estamento;Nombre;Apellido;RUT;Banco;NumeroCuenta;Turnos12h;Turnos24h;Horas;SubtotalTurnos;AjusteRetraso;SueldoJefatura;TotalPagar;Impuesto;BaseMutualidad;Mutualidad0.93%;Estado;Confirmado;Comprobante;Boleta\n";
+  groups(p).forEach(([est,g])=>g.forEach(r=>{const cc=calc(r);c+=[r.est,r.nom,r.ape,r.rut,r.banco,r.cuenta,r.t12,r.t24,cc.horas,cc.subtotal,r.ajuste,r.jefatura,cc.total,r.impuesto,r.base,cc.mut.toFixed(2),r.estado,r.confirmado?"Sí":"No",r.comprobante,r.boleta].join(";")+"\n";}));
+  dl(`Pagos_${MESES[$("mesSel").value-1]}_${$("anioInp").value}.csv`,c);};
+$("btnCSVanual").onclick=()=>{const anio=$("anioInp").value;let c="Mes;"+EST_ORDER.join(";")+";TotalGeneral\n";
+  MESES.forEach((m,mi)=>{const rows=db.data[anio+"-"+(mi+1)]||[];const byE={};EST_ORDER.forEach(e=>byE[e]=0);let mt=0;rows.forEach(r=>{const t=calc(r).total;const k=EST_ORDER.find(e=>rateKey(e)===rateKey(r.est))||r.est;byE[k]=(byE[k]||0)+t;mt+=t;});c+=[m,...EST_ORDER.map(e=>byE[e]||0),mt].join(";")+"\n";});
+  dl(`Resumen_Anual_${anio}.csv`,c);};
+$("btnBackup").onclick=()=>dl("respaldo_sistema_igalan.json",JSON.stringify(db,null,2),"application/json");
+$("btnRestore").onclick=()=>$("fileRestore").click();
+$("fileRestore").onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{db=JSON.parse(rd.result);save();alert("Respaldo restaurado.");location.reload();}catch(err){alert("Archivo inválido.");}};rd.readAsText(f);};
+$("btnWipe").onclick=()=>{if(confirm("¿Borrar TODOS los meses y datos?")){localStorage.removeItem(LS);location.reload();}};
+
+$("mesSel").onchange=()=>{renderMensual();$("impPeriodo").textContent=MESES[$("mesSel").value-1]+" "+$("anioInp").value;};
+$("anioInp").onchange=()=>{renderMensual();};
+renderMensual();
+</script>
+</body>
+</html>
