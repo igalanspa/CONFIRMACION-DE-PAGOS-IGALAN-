@@ -123,6 +123,7 @@
       <h3 style="margin:0 0 6px;color:var(--azul)">Correo automático (EmailJS) — opcional</h3>
       <div class="hint" style="margin-bottom:8px">Permite enviar el correo <b>sin abrir tu app de correo</b>. Crea una cuenta gratis en emailjs.com, un Service y un Template con variables <code>to_email, to_name, subject, message</code>, y pega aquí las claves. WhatsApp siempre abre la app (limitación de WhatsApp).</div>
       <label><input type="checkbox" id="ejAuto" style="width:auto"> Enviar correo automáticamente</label>
+      <label>Correo remitente (debe ser el que conectas en EmailJS)</label><input type="email" id="ejFrom" style="width:100%;max-width:360px" placeholder="jzambrano@igalanspa.com">
       <label>Public Key</label><input type="text" id="ejKey" style="width:100%;max-width:520px">
       <label>Service ID</label><input type="text" id="ejService" style="width:100%;max-width:360px">
       <label>Template ID</label><input type="text" id="ejTemplate" style="width:100%;max-width:360px">
@@ -172,12 +173,14 @@ function calc(r){const [r12,r24]=rate(r.est);const horas=(+r.t12||0)*12+(+r.t24|
 MESES.forEach((m,i)=>{const o=document.createElement("option");o.value=i+1;o.textContent=m;$("mesSel").appendChild(o);});
 $("mesSel").value=6;$("anioInp").value=2026;
 $("cfgUpload").value=db.cfg.upload||"";$("cfgConcepto").value=db.cfg.concepto||"";
-if(!db.cfg.emailjs)db.cfg.emailjs={auto:false,key:"",service:"",template:""};
-$("ejAuto").checked=!!db.cfg.emailjs.auto;$("ejKey").value=db.cfg.emailjs.key||"";$("ejService").value=db.cfg.emailjs.service||"";$("ejTemplate").value=db.cfg.emailjs.template||"";
+if(!db.cfg.emailjs)db.cfg.emailjs={auto:false,key:"",service:"",template:"",from:"jzambrano@igalanspa.com"};
+if(!db.cfg.emailjs.from)db.cfg.emailjs.from="jzambrano@igalanspa.com";
+$("ejAuto").checked=!!db.cfg.emailjs.auto;$("ejKey").value=db.cfg.emailjs.key||"";$("ejService").value=db.cfg.emailjs.service||"";$("ejTemplate").value=db.cfg.emailjs.template||"";$("ejFrom").value=db.cfg.emailjs.from||"";
 $("ejAuto").onchange=e=>{db.cfg.emailjs.auto=e.target.checked;save();};
 $("ejKey").oninput=e=>{db.cfg.emailjs.key=e.target.value.trim();save();};
 $("ejService").oninput=e=>{db.cfg.emailjs.service=e.target.value.trim();save();};
 $("ejTemplate").oninput=e=>{db.cfg.emailjs.template=e.target.value.trim();save();};
+$("ejFrom").oninput=e=>{db.cfg.emailjs.from=e.target.value.trim();save();};
 
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
@@ -262,7 +265,7 @@ function openMsg(r,canal){
     if(ej.auto && ej.key && ej.service && ej.template && r.correo && typeof emailjs!=="undefined"){
       emailjs.init({publicKey:ej.key});
       $("mMsg").textContent="Enviando correo…";
-      emailjs.send(ej.service,ej.template,{to_email:r.correo,to_name:r.nom+" "+r.ape,subject:asunto,message:txt})
+      emailjs.send(ej.service,ej.template,{to_email:r.correo,to_name:r.nom+" "+r.ape,subject:asunto,message:txt,from_email:ej.from||"",reply_to:ej.from||"",from_name:"IGALAN"})
         .then(()=>{$("mMsg").innerHTML='<span class="ok">✓ Correo enviado a '+r.correo+'</span>';setTimeout(()=>$("mMsg").textContent="",4000);})
         .catch(err=>{$("mMsg").innerHTML='<span class="err">Error EmailJS: '+(err.text||err.message||err)+'</span>';});
     } else {
