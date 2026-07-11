@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sistema de Pagos de Personal — IGALAN</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   :root{--azul:#1F4E78;--azul2:#2E75B6;--azul3:#4472C4;--gris:#f4f6f9;--linea:#dce3ee;--verde:#1e9e5a;--ambar:#c9820b;--rojo:#c0392b;}
   *{box-sizing:border-box}
@@ -119,6 +120,14 @@
       <input type="text" id="cfgConcepto" style="width:100%;max-width:360px" placeholder="Pago de honorarios">
     </div>
     <div class="config">
+      <h3 style="margin:0 0 6px;color:var(--azul)">Correo automático (EmailJS) — opcional</h3>
+      <div class="hint" style="margin-bottom:8px">Permite enviar el correo <b>sin abrir tu app de correo</b>. Crea una cuenta gratis en emailjs.com, un Service y un Template con variables <code>to_email, to_name, subject, message</code>, y pega aquí las claves. WhatsApp siempre abre la app (limitación de WhatsApp).</div>
+      <label><input type="checkbox" id="ejAuto" style="width:auto"> Enviar correo automáticamente</label>
+      <label>Public Key</label><input type="text" id="ejKey" style="width:100%;max-width:520px">
+      <label>Service ID</label><input type="text" id="ejService" style="width:100%;max-width:360px">
+      <label>Template ID</label><input type="text" id="ejTemplate" style="width:100%;max-width:360px">
+    </div>
+    <div class="config">
       <h3 style="margin:0 0 8px;color:var(--azul)">Respaldo</h3>
       <div class="toolbar">
         <button class="btn ghost sm" id="btnBackup">⬇ Descargar respaldo (JSON)</button>
@@ -151,7 +160,7 @@ if(!db){
   db.data["2026-6"]=SEED.map(seedRow);
 }
 if(!db.cfg.tarifas)db.cfg.tarifas={eu:[140000,280000],med:[350000,700000],tens:[70000,140000]};
-function seedRow(s){return {est:s.est,nom:s.nom,ape:s.ape,rut:s.rut,banco:s.banco||"",cuenta:s.cuenta||"",t12:s.t12||0,t24:s.t24||0,ajuste:s.ajuste||0,jefatura:s.jefatura||0,impuesto:s.impuesto||"Exento",base:s.base||0,estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""};}
+function seedRow(s){return {est:s.est,nom:s.nom,ape:s.ape,rut:s.rut,banco:s.banco||"",cuenta:s.cuenta||"",correo:s.correo||"",telefono:s.telefono||"",t12:s.t12||0,t24:s.t24||0,ajuste:s.ajuste||0,jefatura:s.jefatura||0,impuesto:s.impuesto||"Exento",base:s.base||0,estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""};}
 function save(){localStorage.setItem(LS,JSON.stringify(db));}
 function per(){return $("anioInp").value+"-"+ $("mesSel").value;}
 function rowsOf(p){return db.data[p]||[];}
@@ -163,6 +172,12 @@ function calc(r){const [r12,r24]=rate(r.est);const horas=(+r.t12||0)*12+(+r.t24|
 MESES.forEach((m,i)=>{const o=document.createElement("option");o.value=i+1;o.textContent=m;$("mesSel").appendChild(o);});
 $("mesSel").value=6;$("anioInp").value=2026;
 $("cfgUpload").value=db.cfg.upload||"";$("cfgConcepto").value=db.cfg.concepto||"";
+if(!db.cfg.emailjs)db.cfg.emailjs={auto:false,key:"",service:"",template:""};
+$("ejAuto").checked=!!db.cfg.emailjs.auto;$("ejKey").value=db.cfg.emailjs.key||"";$("ejService").value=db.cfg.emailjs.service||"";$("ejTemplate").value=db.cfg.emailjs.template||"";
+$("ejAuto").onchange=e=>{db.cfg.emailjs.auto=e.target.checked;save();};
+$("ejKey").oninput=e=>{db.cfg.emailjs.key=e.target.value.trim();save();};
+$("ejService").oninput=e=>{db.cfg.emailjs.service=e.target.value.trim();save();};
+$("ejTemplate").oninput=e=>{db.cfg.emailjs.template=e.target.value.trim();save();};
 
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");
@@ -202,13 +217,15 @@ function renderMensual(){
         <td style="text-align:center"><input type="checkbox" data-k="confirmado" ${r.confirmado?"checked":""}></td>
         <td><input data-k="comprobante" value="${(r.comprobante||"").replace(/"/g,'&quot;')}" placeholder="N°/transf."></td>
         <td><input data-k="boleta" value="${(r.boleta||"").replace(/"/g,'&quot;')}" placeholder="link Drive" style="min-width:110px"> ${link}</td>
+        <td><input data-k="correo" value="${(r.correo||"").replace(/"/g,'&quot;')}" placeholder="correo" style="min-width:120px"></td>
+        <td><input data-k="telefono" value="${(r.telefono||"").replace(/"/g,'&quot;')}" placeholder="+56 9..." style="min-width:100px"></td>
         <td style="display:flex;gap:3px"><button class="btn wa sm" data-act="wa">WA</button><button class="btn mail sm" data-act="mail">✉</button><button class="btn sm" style="background:var(--rojo)" data-act="del">✕</button></td>
       </tr>`;}).join("");
     cont.insertAdjacentHTML("beforeend",
       `<div class="sec-title"><span>ESTAMENTO: ${est}</span><span>${gente.length} personas · ${fmt(sT.total)}</span></div>
-       <div class="scroll"><table><thead><tr><th>Persona</th><th>Banco</th><th>N° Cuenta</th><th>T.12h</th><th>T.24h</th><th>Horas</th><th>Subtotal</th><th>Ajuste</th><th>Jefatura</th><th>Total a Pagar</th><th>Base Mut.</th><th>Mut.0,93%</th><th>Estado</th><th>Conf.</th><th>Comprobante</th><th>Boleta</th><th>Acción</th></tr></thead>
+       <div class="scroll"><table><thead><tr><th>Persona</th><th>Banco</th><th>N° Cuenta</th><th>T.12h</th><th>T.24h</th><th>Horas</th><th>Subtotal</th><th>Ajuste</th><th>Jefatura</th><th>Total a Pagar</th><th>Base Mut.</th><th>Mut.0,93%</th><th>Estado</th><th>Conf.</th><th>Comprobante</th><th>Boleta</th><th>Correo</th><th>Teléfono</th><th>Acción</th></tr></thead>
        <tbody>${rows}
-       <tr class="subtotal"><td colspan="5" style="text-align:right">Subtotal ${est}</td><td>${sT.horas}</td><td>${fmt(sT.subtotal)}</td><td>${fmt(sT.ajuste)}</td><td>${fmt(sT.jefatura)}</td><td>${fmt(sT.total)}</td><td></td><td>${fmt(sT.mut)}</td><td colspan="5"></td></tr>
+       <tr class="subtotal"><td colspan="5" style="text-align:right">Subtotal ${est}</td><td>${sT.horas}</td><td>${fmt(sT.subtotal)}</td><td>${fmt(sT.ajuste)}</td><td>${fmt(sT.jefatura)}</td><td>${fmt(sT.total)}</td><td></td><td>${fmt(sT.mut)}</td><td colspan="7"></td></tr>
        </tbody></table></div>`);
   });
   $("cards").innerHTML=`<div class="card"><div class="lbl">Total a Pagar ${MESES[$("mesSel").value-1]}</div><div class="val">${fmt(gTotal)}</div></div>
@@ -222,7 +239,7 @@ function bind(){
     const i=+tr.dataset.i, arr=rowsOf(per()), r=arr[i];
     tr.querySelectorAll("[data-k]").forEach(el=>el.onchange=()=>{
       const k=el.dataset.k;r[k]= el.type==="checkbox"?el.checked : (["t12","t24","ajuste","jefatura","base"].includes(k)?(el.value===""?0:Number(el.value)):el.value);
-      save();if(["t12","t24","ajuste","jefatura","base"].includes(k))renderMensual();
+      save();if(["t12","t24","ajuste","jefatura","base","estado","confirmado"].includes(k))renderMensual();
       $("mMsg").innerHTML='<span class="ok">✓ Guardado</span>';setTimeout(()=>$("mMsg").textContent="",1200);
     });
     tr.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{
@@ -231,14 +248,27 @@ function bind(){
     });
   });
 }
-$("btnAdd").onclick=()=>{rowsOf(per()).length; if(!db.data[per()])db.data[per()]=[]; db.data[per()].push({est:EST_ORDER[0],nom:"NUEVA",ape:"PERSONA",rut:"",banco:"",cuenta:"",t12:0,t24:0,ajuste:0,jefatura:0,impuesto:"Exento",base:0,estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""});save();renderMensual();};
+$("btnAdd").onclick=()=>{rowsOf(per()).length; if(!db.data[per()])db.data[per()]=[]; db.data[per()].push({est:EST_ORDER[0],nom:"NUEVA",ape:"PERSONA",rut:"",banco:"",cuenta:"",correo:"",telefono:"",t12:0,t24:0,ajuste:0,jefatura:0,impuesto:"Exento",base:0,estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""});save();renderMensual();};
 
 // ---- mensaje ----
+function telIntl(t){let d=(t||"").replace(/[^0-9]/g,"");if(!d)return "";if(d.startsWith("56"))return d;if(d.length===9&&d.startsWith("9"))return "56"+d;if(d.length===8)return "569"+d;return d;}
+function msgText(r){const c=calc(r),link=db.cfg.upload||"";const concepto=db.cfg.concepto||"Pago de honorarios";
+  return `Hola ${r.nom} ${r.ape},\n\n${concepto} correspondiente a ${MESES[$("mesSel").value-1]} ${$("anioInp").value}.\nTotal a pagar: ${fmt(c.total)}.\nEstamento: ${r.est}.\n\nPor favor suba su boleta/factura en esta carpeta para confirmar la recepción del pago:\n${link}\n\n¡Gracias!\n— IGALAN`;}
 function openMsg(r,canal){
-  const c=calc(r),link=db.cfg.upload||"";const concepto=db.cfg.concepto||"Pago de honorarios";
-  const txt=`Hola ${r.nom} ${r.ape},\n\n${concepto} correspondiente a ${MESES[$("mesSel").value-1]} ${$("anioInp").value}.\nTotal a pagar: ${fmt(c.total)}.\nEstamento: ${r.est}.\n\nPor favor suba su boleta/factura en esta carpeta para confirmar la recepción del pago:\n${link}\n\n¡Gracias!\n— IGALAN`;
-  if(canal==="wa")window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
-  else location.href="mailto:?subject="+encodeURIComponent(`Pago ${MESES[$("mesSel").value-1]} ${$("anioInp").value} — ${r.nom} ${r.ape}`)+"&body="+encodeURIComponent(txt);
+  const txt=msgText(r);const asunto=`Pago ${MESES[$("mesSel").value-1]} ${$("anioInp").value} — ${r.nom} ${r.ape}`;
+  if(canal==="wa"){const n=telIntl(r.telefono);window.open("https://wa.me/"+n+"?text="+encodeURIComponent(txt),"_blank");}
+  else{
+    const ej=db.cfg.emailjs||{};
+    if(ej.auto && ej.key && ej.service && ej.template && r.correo && typeof emailjs!=="undefined"){
+      emailjs.init({publicKey:ej.key});
+      $("mMsg").textContent="Enviando correo…";
+      emailjs.send(ej.service,ej.template,{to_email:r.correo,to_name:r.nom+" "+r.ape,subject:asunto,message:txt})
+        .then(()=>{$("mMsg").innerHTML='<span class="ok">✓ Correo enviado a '+r.correo+'</span>';setTimeout(()=>$("mMsg").textContent="",4000);})
+        .catch(err=>{$("mMsg").innerHTML='<span class="err">Error EmailJS: '+(err.text||err.message||err)+'</span>';});
+    } else {
+      location.href="mailto:"+encodeURIComponent(r.correo||"")+"?subject="+encodeURIComponent(asunto)+"&body="+encodeURIComponent(txt);
+    }
+  }
 }
 $("mClose").onclick=()=>$("modalBg").style.display="none";
 
@@ -269,13 +299,15 @@ function mapMatrix(matrix){
   const hdr=matrix[0].map(norm);
   const iE=findCol(hdr,"estamento"),iN=findCol(hdr,"nombre"),iA=findCol(hdr,"apellido"),iR=findCol(hdr,"rut"),
         iB=findCol(hdr,"banco"),iC=findCol(hdr,"cuenta"),i12=findCol(hdr,"12"),i24=findCol(hdr,"24"),
-        iAj=findCol(hdr,"ajuste","retraso"),iJ=findCol(hdr,"jefatura"),iI=findCol(hdr,"impuesto"),iBas=findCol(hdr,"base");
+        iAj=findCol(hdr,"ajuste","retraso"),iJ=findCol(hdr,"jefatura"),iI=findCol(hdr,"impuesto"),iBas=findCol(hdr,"base"),
+        iCorreo=findCol(hdr,"correo","email","mail"),iTel=findCol(hdr,"telefono","teléfono","celular","fono","whatsapp","numero");
   const out=[];
   for(let r=1;r<matrix.length;r++){const row=matrix[r];if(!row||row.every(c=>c===""||c==null))continue;
     const nom=iN>=0?String(row[iN]||"").trim():"",rut=iR>=0?String(row[iR]||"").trim():"";
     if(!nom&&!rut)continue;
     out.push({est:(iE>=0?String(row[iE]||"").trim():"")||"SIN ESTAMENTO",nom,ape:iA>=0?String(row[iA]||"").trim():"",rut,
       banco:iB>=0?String(row[iB]||"").trim():"",cuenta:iC>=0?String(row[iC]||"").trim():"",
+      correo:iCorreo>=0?String(row[iCorreo]||"").trim():"",telefono:iTel>=0?String(row[iTel]||"").trim():"",
       t12:i12>=0?toNum(row[i12]):0,t24:i24>=0?toNum(row[i24]):0,ajuste:iAj>=0?toNum(row[iAj]):0,
       jefatura:iJ>=0?toNum(row[iJ]):0,impuesto:iI>=0?(String(row[iI]||"").trim()||"Exento"):"Exento",base:iBas>=0?toNum(row[iBas]):0,
       estado:"Pendiente",fecha:"",confirmado:false,comprobante:"",boleta:""});}
@@ -294,7 +326,7 @@ async function handleFiles(files){
   if(!recs.length){msg.innerHTML='<span class="err">No se detectaron filas válidas.</span>';return;}
   if(!db.data[p])db.data[p]=[];
   if($("impMode").value==="reemplazar")db.data[p]=recs;
-  else recs.forEach(nr=>{const ex=db.data[p].find(x=>x.rut&&x.rut===nr.rut);if(ex)Object.assign(ex,{est:nr.est,nom:nr.nom,ape:nr.ape,banco:nr.banco,cuenta:nr.cuenta,t12:nr.t12,t24:nr.t24,ajuste:nr.ajuste,jefatura:nr.jefatura,impuesto:nr.impuesto,base:nr.base});else db.data[p].push(nr);});
+  else recs.forEach(nr=>{const ex=db.data[p].find(x=>x.rut&&x.rut===nr.rut);if(ex)Object.assign(ex,{est:nr.est,nom:nr.nom,ape:nr.ape,banco:nr.banco,cuenta:nr.cuenta,correo:nr.correo||ex.correo,telefono:nr.telefono||ex.telefono,t12:nr.t12,t24:nr.t24,ajuste:nr.ajuste,jefatura:nr.jefatura,impuesto:nr.impuesto,base:nr.base});else db.data[p].push(nr);});
   save();msg.innerHTML=`<span class="ok">✓ ${recs.length} filas cargadas en ${MESES[$("mesSel").value-1]} ${$("anioInp").value}.</span>`;renderMensual();
 }
 $("btnPlantilla").onclick=()=>dl("plantilla_mes.csv","Estamento;Nombre;Apellido;RUT;Banco;NumeroCuenta;Turnos12h;Turnos24h;AjusteRetraso;SueldoJefatura;Impuesto;BaseMutualidad\nTENS;JUAN;PEREZ;12345678-9;ESTADO;123456;10;0;0;0;Exento;0\n");
@@ -312,8 +344,8 @@ $("cfgConcepto").oninput=e=>{db.cfg.concepto=e.target.value;save();};
 
 // ---- export / backup ----
 function dl(name,text,type){const b=new Blob([text],{type:type||"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;a.click();}
-$("btnCSV").onclick=()=>{const p=per();let c="Estamento;Nombre;Apellido;RUT;Banco;NumeroCuenta;Turnos12h;Turnos24h;Horas;SubtotalTurnos;AjusteRetraso;SueldoJefatura;TotalPagar;Impuesto;BaseMutualidad;Mutualidad0.93%;Estado;Confirmado;Comprobante;Boleta\n";
-  groups(p).forEach(([est,g])=>g.forEach(r=>{const cc=calc(r);c+=[r.est,r.nom,r.ape,r.rut,r.banco,r.cuenta,r.t12,r.t24,cc.horas,cc.subtotal,r.ajuste,r.jefatura,cc.total,r.impuesto,r.base,cc.mut.toFixed(2),r.estado,r.confirmado?"Sí":"No",r.comprobante,r.boleta].join(";")+"\n";}));
+$("btnCSV").onclick=()=>{const p=per();let c="Estamento;Nombre;Apellido;RUT;Banco;NumeroCuenta;Correo;Telefono;Turnos12h;Turnos24h;Horas;SubtotalTurnos;AjusteRetraso;SueldoJefatura;TotalPagar;Impuesto;BaseMutualidad;Mutualidad0.93%;Estado;Confirmado;Comprobante;Boleta\n";
+  groups(p).forEach(([est,g])=>g.forEach(r=>{const cc=calc(r);c+=[r.est,r.nom,r.ape,r.rut,r.banco,r.cuenta,r.correo||"",r.telefono||"",r.t12,r.t24,cc.horas,cc.subtotal,r.ajuste,r.jefatura,cc.total,r.impuesto,r.base,cc.mut.toFixed(2),r.estado,r.confirmado?"Sí":"No",r.comprobante,r.boleta].join(";")+"\n";}));
   dl(`Pagos_${MESES[$("mesSel").value-1]}_${$("anioInp").value}.csv`,c);};
 $("btnCSVanual").onclick=()=>{const anio=$("anioInp").value;let c="Mes;"+EST_ORDER.join(";")+";TotalGeneral\n";
   MESES.forEach((m,mi)=>{const rows=db.data[anio+"-"+(mi+1)]||[];const byE={};EST_ORDER.forEach(e=>byE[e]=0);let mt=0;rows.forEach(r=>{const t=calc(r).total;const k=EST_ORDER.find(e=>rateKey(e)===rateKey(r.est))||r.est;byE[k]=(byE[k]||0)+t;mt+=t;});c+=[m,...EST_ORDER.map(e=>byE[e]||0),mt].join(";")+"\n";});
